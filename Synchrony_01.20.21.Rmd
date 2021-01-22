@@ -1,0 +1,1153 @@
+---
+title: "Synchrony_01.20.21"
+output:
+  html_document: default
+  pdf_document: default
+---
+Next steps: 
+(1) Get infant sex --> Birth chart data (figure out who is missing, update with birthcharts, and contact Van with birth chart, and Shreya/Monica/Vanessa look at videos---ask Alyssa) (Association between infant sex and maternal testosterone)--> I emailed Darby about the file that didn't work; she is getting me a new one
+(2) How to select cases for demographics (include people with missing data points---how to compare them--t-test even if uneven sizes to say there aren't big differences; see if the fifteen if first t mps onto average t)
+(3) Outliers for hormone data ---include the people with one sample and try analyses with and without 
+
+## Preparation
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load packages, message=FALSE}
+
+# Add additional packages you need
+# To install a package, run the following ONCE (and only once on your computer)
+# install.packages("psych")  
+# install.packages ("ggpubr")
+# install.packages("Publish")
+# install.packages("ggubr")
+# install.packages("corrplot")
+# install.packages("RColorBrewer")
+# install.packages("ggpubr")
+# install.packages("lme4")
+# install.packages("lmerTest")
+# install.packages("multilevelTools")
+# install.packages("pastecs")
+# install.packages("qwraps2")
+# install.packages(apaTables)
+# install.packages(apa.d.table)
+# install.packages(apa.descriptive)
+# install.packages(apa.cor.table)
+# install.packages(Gmisc)
+# install.packages('ltm')
+# install.packages("Hmisc")
+
+library(ltm)
+library(qwraps2)
+library(multilevelTools)
+library(lme4)
+library(lmerTest)
+library(ggpubr)
+library(Publish) 
+library(here)  # makes reading data more consistent
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(sjPlot)  # for plotting effects
+library(broom.mixed)  # for summarizing results
+library(interactions)  # for plotting interactions
+library(modelsummary)  # for making tables
+library(psych)
+library(ggpubr)
+library(lmerTest)
+library(corrplot)
+library(RColorBrewer)
+library(ggpubr)
+library(pastecs)
+library(apaTables)
+library(tidyr)
+library(dplyr)
+library(tidyverse)  # for data manipulation and plotting
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(interactions)  # for plotting interaction
+library(rstan)
+library(foreign)
+library(foreign)
+
+# Add the following so that the LOO will be included in the msummary table
+msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
+  if (is.null(coef_map)) {
+    if (!"list" %in% class(models)) {
+      models <- list(models)
+    }
+    for (model in models) {
+      coef_map <- union(coef_map, tidy(model)$term)
+    }
+  }
+  ranef_index <- grep("^(sd|cor)__", x = coef_map)
+  coef_map <- c(coef_map[-ranef_index], coef_map[ranef_index])
+  names(coef_map) <- coef_map
+library(dplyr)
+  rows <- data.frame(term = c("Fixed Effects", "Random Effects"))
+  rows <- cbind(rows, rbind(rep("", length(models)), 
+                            rep("", length(models))))
+  length_fes <- length(coef_map) - length(ranef_index)
+  attr(rows, 'position') <- c(1, (length_fes + 1) * 2)
+  modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
+}
+theme_set(theme_bw())  # Theme; just my personal preference
+```
+
+# When working with new SPSS folder, rename Test Variables in SPSS
+
+1. Rename testosterone variables in SPSS...
+Testo1pn.1.trunc--->Mompn1
+Testo3pn.1.trunc--->Mompn2
+Testo6pn.1.trunc--->Mompn3
+Testo1pn.2.trunc--->Dadpn1
+Testo3pn.2.trunc--->Dadpn2
+Testo6pn.2.trunc--->Dadpn3
+Testo1pp.1trunc--->Mompp1
+Testo3pp.1trunc--->Mompp2
+Testo6pp.1trunc--->Mompp3
+Testo1pp.2.00--->Dadpp1
+Testo3pp.2.00--->Dadpp2
+Testo6pp.2.00--->Dadpp3
+
+2. Make new variable by calculating the weeks pregnant by dividing dayspreg.1/7
+dayspreg.1--->WeeksPregnant.1 (optional)
+
+3. Make new variable by calculate average scores in SPSS...
+MomTesto1
+DadTesto1
+MomTesto2
+DadTesto2
+monthspreg.1
+weekspreg.1
+bage6pp.months
+
+4. Move these variables to the front...
+CoupID
+RelStat
+pnAge_1.1
+pnAge_1.2
+Ethnicity.1
+Ethnicity.2
+Education.1
+Education.2
+Baby.sex
+monthspreg.1
+weekspreg.1
+dayspreg.1
+bage6pp.months
+bage6pp
+bage3pp.1
+bage3pp.2
+Mompn1
+Mompn2
+Mompn3
+Dadpn1
+Dadpn2
+Dadpn3
+Mompp1
+Mompp2
+Mompp3
+Dadpp1
+Dadpp2
+Dadpp3
+MomTesto1
+DadTesto1
+MomTesto2
+DadTesto2
+PARYCse.1
+PARYCse.2
+PARYCpa.1
+PARYCpa.2
+PARYCtot.1
+PARYCtot.2
+DAStotpp.1
+DAStotpp.2
+pnMaritalSat.1
+pnMaritalSat.2
+MAT1pp
+MAT2pp
+PBQ.1
+PBQ.2
+
+5.Save the dataset with "_extra" where the first 18 people have their one data point as their average
+
+# Prenatal Equations
+
+Level-1:
+$$\text{Father_Prenatal_Testosterone}_{ij} = \beta_{0j} + \beta_{1j}Mother\_Prenatal\_Testosterone{ij} + \beta_{2j}Father\_Age{ij} + \beta_{3j}Mother\_Weeks\_Pregnant{ij} + e_{ij}$$     
+
+Father_Prenatal_Testosterone_ij = refers to the score on the dependent variable for an individual observation at Level 1 (subscript i refers to individual case, subscript j refers to the couple).
+Beta_0j = refers to the intercept of the dependent variable in couple j (Level 2).
+Beta_1j_Mother_Prenatal_Testosterone_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+Beta_2j_Father_Age_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+Beta_3j_Mother_Weeks_Pregnant_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+e_ij=  refers to the random errors of prediction for the Level 1 equation.  
+ 
+ Level-2
+$$\beta_{0j} = \gamma_{00} + \gamma_{01}Mother\_Prenatal\_Testosterone_j + u_{0j}$$    
+
+Beta_0j = refers to the intercept of the dependent variable in couple j (Level 2).
+gamma_00 = refers to the overall intercept. This is the grand mean of the scores on the dependent variable across all the couple when all the predictors are equal to 0.
+gamma_01_Mother_Prenatal_Testosterone_j= refers to the overall regression coefficient, or the slope, between the dependent variable and the Level 2 predictor.
+u_0j= refers to the random error component for the deviation of the intercept of a couple from the overall intercept.
+
+$$\beta_{1j} = \gamma_{10} + u_{1j}$$  
+
+Beta_1j = refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+gamma_10 = refers to the overall regression coefficient, or the slope, between the dependent variable and the Level 1 predictor.
+u_1j = refers to the error component for the slope (meaning the deviation of the group slopes from the overall slope).
+ 
+# Postpartum Equations
+
+$$\text{Father_Postpartum_Testosterone}_{ij} = \beta_{0j} + \beta_{1j}Mother\_Postpartum\_Testosterone{ij} + \beta_{2j}Father\_Age{ij} + \beta_{3j}Baby\_Age{ij} + e_{ij}$$    
+
+Beta_0j = refers to the intercept of the dependent variable in couple j (Level 2).
+Beta_1j_Mother_Postpartum_Testosterone_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+Beta_2j_Father_Age_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+Beta_3j_Baby_Age_ij= refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+e_ij=  refers to the random errors of prediction for the Level 1 equation
+ 
+ Level-2
+$$\beta_{0j} = \gamma_{00} + \gamma_{01}Mother\_Postpatum\_Testosterone_j + u_{0j}$$      
+
+Beta_0j = refers to the intercept of the dependent variable in group j (Level 2).
+gamma_00 = refers to the overall intercept. This is the grand mean of the scores on the dependent variable across all the couple when all the predictors are equal to 0.
+gamma_01_Mother_Postpartuml_Testosterone_j= refers to the overall regression coefficient, or the slope, between the dependent variable and the Level 2 predictor.
+u_0j= refers to the random error component for the deviation of the intercept of a couple from the overall intercept.
+
+$$\beta_{1j} = \gamma_{10} + u_{1j}$$     
+
+Beta_1j = refers to the slope for the relationship in couple j (Level 2) between the Level 1 predictor and the dependent variable.
+gamma_10 = refers to the overall regression coefficient, or the slope, between the dependent variable and the Level 1 predictor.
+u_1j = refers to the error component for the slope (meaning the deviation of the group slopes from the overall slope).
+
+# Data preparation
+
+```{r Import Data}
+df_WIDE <- read.spss('/Users/sofiacardenas/Desktop/MLM(psyc575)/Final_Project/HATCH_12.10.2020.sav',to.data.frame=TRUE)
+```
+
+```{r}
+df_WIDE$Baby.sex <- factor(df_WIDE$Baby.sex)
+```
+
+```{r Convert Wide Data to Long Format}
+# Using the new `tidyr::pivot_longer()` function
+df_LONG <- df_WIDE %>% 
+  pivot_longer(
+    c(Mompn1:Mompn3, Dadpn1:Dadpn3, Mompp1:Mompp3, Dadpp1:Dadpp3), # variables that are repeated measures
+    # Convert 8 columns to 3: 2 columns each for anti/read (.value), and 
+    # one column for time
+    names_to = c(".value", "Testo_Measurement"),
+    # Extract the names "anti"/"read" from the names of the variables for the 
+    # value columns, and then the number to the "time" column
+    names_pattern = "(Mompn|Dadpn|Mompp|Dadpp)([1-3])", 
+    # Convert the "time" column to integers
+    names_transform = list(time = as.integer)
+    )
+df_LONG %>% 
+  select(CoupID, Testo_Measurement, Mompn, Dadpn, Mompp, Dadpp, everything())
+``` 
+
+# Synchrony using first t values
+
+```{r}
+df_WIDE <- read.spss('/Users/sofiacardenas/Desktop/MLM(psyc575)/Final_Project/HATCH_12.10.2020.sav',use.value.label=TRUE, to.data.frame=TRUE)
+df_WIDE
+```
+
+```{r Make dad prenatal and postpartum variable}
+df_WIDE <- df_WIDE %>% 
+    mutate(Dad_Change = Dadpp1-Dadpn1)
+```
+
+```{r}
+df_WIDE$Baby.sex <- factor(df_WIDE$Baby.sex)
+```
+
+```{r }
+m0_Model_daddy <- brm(Dadpn1 ~ (1 | CoupID), 
+                      seed = 2152, control = list(max_treedepth = 15), chains = 8,iter = 4000, data = df_WIDE)
+
+echo=FALSE
+```
+
+```{r}
+m0_Model_daddy
+```
+
+# Using unconditional models to assess prenatal intra-class correlation and decompose variance
+
+```{r}
+# Warning: Rows containing NAs were excluded from the model.
+# Daddy (expectant dad-testosterone)
+post_daddy <- posterior_samples(m0_Model_daddy, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_daddy <- post_daddy$sd_CoupID__Intercept^2 / 
+  (post_daddy$sd_CoupID__Intercept^2 + post_daddy$sigma^2)
+
+# Print ICCs
+c(daddy = mean(icc_samples_daddy))
+```
+
+```{r Prenatal MLM model }
+Bayesian_Synchrony_Prenatal_Larger <- brm(Dadpn1 ~ pnAge_1.2 + monthspreg.1 + Mompn1 + (Mompn1 | CoupID),
+               seed = 2153,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_WIDE)
+
+```
+
+```{r Results Prenatals Synchrony Model}
+Bayesian_Synchrony_Prenatal_Larger
+```
+
+```{r Figure of prenatal mothers testerone predicting fathers prenatal testosterone}
+
+augment(Bayesian_Synchrony_Prenatal_Larger) %>% 
+  mutate(MomTesto1 = Mompn1) %>% 
+  ggplot(aes(x = Mompn1, y = Dadpn1, color = factor(CoupID))) +
+  # Add points
+  geom_point(size = 0.5, alpha = 0.2) + 
+  # Add within-cluster lines
+  geom_smooth(aes(y = .fitted), 
+              method = "lm", se = FALSE, size = 0.5) + 
+  # Add group means
+  stat_summary(aes(x = Mompn1, y = .fitted, 
+                   fill = factor(CoupID)), 
+               color = "red",  # add border
+               fun = mean, 
+               geom = "point",
+               shape = 24,
+               # use triangles
+               size = 2.5) + 
+  # Add between coefficient
+  geom_smooth(aes(x = Mompn1, y = .fitted), 
+              method = "lm", se = TRUE, 
+              color = "black") + 
+  labs(y = "Dadpn") + 
+  # Suppress legend
+  guides(color = FALSE, fill = FALSE)
+```
+
+# Making unconditional models for all postpartum variables
+
+```{r message=FALSE, warning=FALSE}
+m0_Model_daddy_2 <- brm(Dadpp1 ~ (1 | CoupID), data = df_WIDE, 
+               seed = 2152)
+echo=FALSE
+```
+
+```{r}
+m0_Model_daddy_2
+```
+
+# Using unconditional models to assess prenatal intra-class correlation and decompose variance
+
+```{r}
+# Warning: Rows containing NAs were excluded from the model.
+# Daddy (expectant dad-testosterone)
+post_daddy_2 <- posterior_samples(m0_Model_daddy_2, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_daddy_2 <- post_daddy_2$sd_CoupID__Intercept^2 / 
+  (post_daddy_2$sd_CoupID__Intercept^2 + post_daddy_2$sigma^2)
+
+# Print ICCs
+c(daddy_2 = mean(icc_samples_daddy_2))
+
+```
+
+# Postpartum MLM model 
+
+```{r}
+Bayesian_Synchrony_Postpartum_Larger <- brm(Dadpp1 ~ pnAge_1.2 + bage6pp.months + Mompp1 + (Mompp1 | CoupID),
+               seed = 2153,
+               control = list(max_treedepth = 15, adapt_delta = .999),
+               chains = 8, 
+               iter = 6000, data = df_WIDE)
+
+```
+
+```{r}
+Bayesian_Synchrony_Postpartum_Larger
+```
+
+```{r Figure 2 }
+augment(Bayesian_Synchrony_Postpartum_Larger) %>% 
+  mutate(Mompp = Mompp1) %>% 
+  ggplot(aes(x = Mompp1, y = Dadpp1, color = factor(CoupID))) +
+  # Add points
+  geom_point(size = 0.5, alpha = 0.2) + 
+  # Add within-cluster lines
+  geom_smooth(aes(y = .fitted), 
+              method = "lm", se = FALSE, size = 0.5) + 
+  # Add group means
+  stat_summary(aes(x = Mompp1, y = .fitted, 
+                   fill = factor(CoupID)), 
+               color = "red",  # add border
+               fun = mean, 
+               geom = "point",
+               shape = 24,
+               # use triangles
+               size = 2.5) + 
+  # Add between coefficient
+  geom_smooth(aes(x = Mompp1, y = .fitted), 
+              method = "lm", se = TRUE, 
+              color = "black") + 
+  labs(y = "Dadpp1") + 
+  # Suppress legend
+  guides(color = FALSE, fill = FALSE)
+```
+
+```{r Create new variable Prenatal Synchrony}
+beta <-ranef(Bayesian_Synchrony_Prenatal_Larger)
+beta
+```
+
+```{r}
+beta_beta <- beta$CoupID[ , , "Mompn1"]
+beta_beta
+```
+
+```{r}
+synchrony <- beta_beta[ ,"Estimate"]
+synchrony
+```
+
+```{r}
+synchrony <- as.data.frame(synchrony)
+synchrony
+```
+
+```{r}
+df_WIDE <- df_WIDE %>%
+  mutate(CoupID=as.character(CoupID))
+```
+
+```{r}
+synchrony <- rownames_to_column(synchrony, "CoupID")
+synchrony
+```
+
+```{r Add Prenataal Synchrony to the dataset}
+finaldt <- left_join(df_WIDE, synchrony)
+finaldt
+```
+
+# Postpartum Synchrony 
+
+```{r}
+beta_2 <-ranef(Bayesian_Synchrony_Postpartum_Larger)
+beta_2
+```
+
+```{r}
+beta_beta_2 <- beta_2$CoupID[ , , "Mompp1"]
+beta_beta_2
+```
+
+```{r}
+synchrony_2 <- beta_beta_2[ ,"Estimate"]
+synchrony_2
+```
+
+```{r}
+synchrony_2<- as.data.frame(synchrony_2)
+synchrony_2
+```
+
+```{r}
+df_WIDE <- df_WIDE %>%
+  mutate(CoupID=as.character(CoupID))
+```
+
+```{r}
+synchrony_2 <- rownames_to_column(synchrony_2, "CoupID")
+synchrony_2
+```
+
+```{r}
+finaldt_2 <- left_join(df_WIDE, synchrony_2)
+finaldt_2
+```
+
+```{r}
+finaldt_2 %>% 
+  select(CoupID, synchrony_2, Dad_Change, everything())
+finaldt_2
+```
+
+# Prenatal Synchrony and Testosteone Change Prenatal to Postpartum
+
+```{r Looking at Dad Change Testosterone}
+finaldt$Dad_Change
+summary(finaldt$Dad_Change)
+```
+
+```{r Looking at Couple Synchrony}
+finaldt$synchrony
+summary(finaldt$synchrony)
+```
+
+# Put synchrony into one set
+
+```{r Prenatal_synchrony}
+Prenatal_synchrony <- finaldt$synchrony
+```
+
+```{r Postpartum synchrony}
+Postpartum_synchrony <- finaldt_2$synchrony_2
+```
+
+```{r Put Prenatal and Postpartum Synchrony into one set}
+finaldt_3 <- left_join(finaldt_2, synchrony)
+finaldt_3
+```
+
+```{r}
+finaldt_3 %>% 
+  select(CoupID, synchrony, synchrony_2, everything())
+```
+
+```{r}
+finaldt_3 %>% 
+  select(CoupID, synchrony, synchrony_2, Dad_Change, everything())
+```
+
+```{r}
+finaldt_4 <- subset(finaldt_3, synchrony != "NA" | synchrony_2 != "NA")
+finaldt_4
+
+```
+
+```{r}
+finaldt_4 %>% 
+  select(CoupID, synchrony, synchrony_2, Dad_Change, everything())
+```
+
+# Prenatal Synchrony & Fathers' Testosterone Changes
+
+```{r Prenatal Synchrony and Testosteone Change Prenatal to Postpartum}
+linearMod_CHANGE <- lm(Dad_Change ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearMod_CHANGE)
+summary.lm(linearMod_CHANGE)
+```
+
+```{r First Scatterplot of Prenatal Synchrony and Dad Change}
+ggscatter(finaldt_4, x = "synchrony", y = "Dad_Change", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Fathers' Testosterone Change from Prenatal to Postpartum")
+```
+
+```{r Second Scatterplot of Prenatal Synchrony and Dad Change}
+ggscatter(finaldt_4, x = "Dad_Change", y = "synchrony", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Fathers' Testosterone Change from Prenatal to Postpartum", ylab = "Prenatal Synchrony")
+```
+
+# Postpartum Synchrony & Fathers' Testosterone Changes
+
+```{r Postpartum Synchrony and Testosteone Change Prenatal to Postpartum}
+linearMod_CHANGE_2 <- lm(Dad_Change ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearMod_CHANGE_2)
+summary.lm(linearMod_CHANGE_2)
+```
+
+```{r First Scatterplot of Postpartum Synchrony and Dad Change}
+ggscatter(finaldt_4, x = "synchrony_2", y = "Dad_Change", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Fathers' Testosterone Change from Prenatal to Postpartum")
+```
+
+```{r Second Scatterplot of Postpartum Synchrony and Dad Change}
+ggscatter(finaldt_4, x = "Dad_Change", y = "synchrony_2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Fathers' Testosterone Change from Prenatal to Postpartum", ylab = "Postpartum Synchrony")
+```
+
+# Synchrony & Attachment 
+
+```{r Prenatal Synchrony and Maternal Attachment}
+linearPrenatalSynchrony_MaternalAttachment <- lm(PBQ.1 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalAttachment)
+summary(linearPrenatalSynchrony_MaternalAttachment)
+```
+
+```{r Graph Prenatal Synchrony and Maternal Attachment}
+ggscatter(finaldt_4, x = "synchrony", y = "PBQ.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Mother Postpartum Parental Bonding")
+```
+
+```{r Prenatal Synchrony and Paternal Attachment}
+linearPrenatalSynchrony_PaternalAttachment <- lm(PBQ.2 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_PaternalAttachment)
+summary(linearPrenatalSynchrony_PaternalAttachment)
+```
+
+```{r Results Prenatal Synchrony and Paternal Attachment}
+ggscatter(finaldt_4, x = "synchrony", y = "PBQ.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Father Postpartum Parental Bonding")
+```
+
+```{r Postpartum Synchrony and Maternal Attachment}
+linearPostpartumSynchrony_MaternalAttachment <- lm(PBQ.1 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_MaternalAttachment)
+summary(linearPostpartumSynchrony_MaternalAttachment)
+```
+
+```{r Results Postpartum Synchrony and Maternal Attachment}
+ggscatter(finaldt_4, x = "synchrony_2", y = "PBQ.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Mother Postpartum Parental Bonding")
+```
+
+```{r Postpartum Synchrony and Paternal Attachment}
+linearPostpartumSynchrony_PaternalAttachment <- lm(PBQ.2 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_PaternalAttachment)
+summary(linearPostpartumSynchrony_PaternalAttachment)
+```
+
+```{r Results Postpartum Synchrony and Paternal Attachment}
+ggscatter(finaldt_4, x = "synchrony_2", y = "PBQ.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Paternal Postpartum Parental Bonding")
+```
+
+# Synchrony & Parenting Behavior 
+
+```{r Prenatal Synchrony and Maternal Parenting Behavior}
+linearPrenatalSynchrony_MaternalParentBehavior <- lm(PARYCtot.1 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalParentBehavior)
+summary(linearPrenatalSynchrony_MaternalParentBehavior)
+```
+
+```{r Graphs Prenatal Synchrony and Maternal Parenting Behavior}
+ggscatter(finaldt_4, x = "synchrony", y = "PARYCtot.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Maternal Postpartum Parenting Behavior")
+```
+
+```{r Prenatal Synchrony and Paternal Parenting Behavior}
+linearPrenatalSynchrony_MaternalParentBehavior <- lm(PARYCtot.2 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalParentBehavior)
+summary(linearPrenatalSynchrony_MaternalParentBehavior)
+```
+
+```{r Results Prenatal Synchrony and Paternal Parenting Behavior}
+ggscatter(finaldt_4, x = "synchrony", y = "PARYCtot.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Paternal Postpartum Parenting Behavior")
+```
+
+```{r Postpartum Synchrony and Maternal Parenting Behavior}
+linearPostpartumSynchrony_PaternalParentBehavior <- lm(PARYCtot.1 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_PaternalParentBehavior)
+summary(linearPostpartumSynchrony_PaternalParentBehavior)
+```
+
+```{r Graph Postpartum Synchrony and Maternal Parenting Behavior}
+ggscatter(finaldt_4, x = "synchrony_2", y = "PARYCtot.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Maternal Postpartum Parenting Behavior")
+```
+
+```{r Postpartum Synchrony and Paternal Parenting Behavior}
+linearPostpartumSynchrony_PaternalParentBehavior <- lm(PARYCtot.2 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_PaternalParentBehavior)
+summary(linearPostpartumSynchrony_PaternalParentBehavior)
+```
+
+```{r Graph Postpartum Synchrony and Paternal Parenting Behavior}
+ggscatter(finaldt_4, x = "synchrony_2", y = "PARYCtot.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Paternal Postpartum Parenting Behavior")
+```
+
+# Synchrony & Relationship Functioning
+
+```{r}
+linearPrenatalSynchrony_MaternalRelationship <- lm(DAStotpp.1 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalRelationship)
+summary(linearPrenatalSynchrony_MaternalRelationship)
+```
+
+```{r}
+ggscatter(finaldt_4, x = "synchrony", y = "DAStotpp.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Maternal Pospartum Relationship Functioning")
+```
+
+```{r Results Prenatal Synchrony and Paternal Relationship}
+linearPrenatalSynchrony_PaternalRelationship <- lm(DAStotpp.2 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_PaternalRelationship)
+summary(linearPrenatalSynchrony_PaternalRelationship)
+```
+
+```{r Graph Prenatal Synchrony and Paternal Relationship}
+ggscatter(finaldt_4, x = "synchrony", y = "DAStotpp.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Paternal Pospartum Relationship Functioning")
+```
+
+```{r Postpartum Synchrony and Maternal Relationship}
+linearPostpartumSynchrony_MaternalRelationship <- lm(DAStotpp.1 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_MaternalRelationship)
+summary(linearPostpartumSynchrony_MaternalRelationship)
+```
+
+```{r Results Postpartum Synchrony and Maternal Relationship}
+ggscatter(finaldt_4, x = "synchrony_2", y = "DAStotpp.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Maternal Pospartum Relationship Functioning")
+```
+
+```{r Postpartum Synchrony and Paternal Relationships}
+linearPostpartumSynchrony_PaternalRelationship <- lm(DAStotpp.2 ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_PaternalRelationship)
+summary(linearPostpartumSynchrony_PaternalRelationship)
+```
+
+```{r Graph Postpartum Synchrony and Paternal Relationships}
+ggscatter(finaldt_4, x = "synchrony_2", y = "DAStotpp.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Paternal Pospartum Relationship Functioning")
+```
+
+```{r s}
+finaldt_4 <- finaldt_4 %>% 
+  select(CoupID, synchrony, synchrony_2, Age_1.2, bage6pp, everything())
+finaldt_4
+```
+
+```{r Results Prenatal Synchrony and Prenatal Maternal Relationship}
+linearPrenatalSynchrony_MaternalRelationship <- lm(pnDAStot.1 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalRelationship)
+summary(linearPrenatalSynchrony_MaternalRelationship)
+```
+
+```{r Graph Prenatal Synchrony and Prenatal Maternal Relationship}
+ggscatter(finaldt_4, x = "synchrony", y = "DAStotpp.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Maternal Pospartum Relationship Functioning")
+```
+
+# Synchrony & Marital Satisfaction
+
+```{r Prenatal Synchrony & Prenatal Maternal Marital Satisfaction}
+linearPrenatalSynchrony_MaternalRelationshipSat <- lm(pnMaritalSat.1 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_MaternalRelationshipSat)
+summary(linearPrenatalSynchrony_MaternalRelationshipSat)
+```
+
+```{r Graph Prenatal Synchrony & Prenatal Maternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony", y = "pnMaritalSat.1", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Maternal Prenatal Relationship Satisfaction")
+```
+
+# Synchrony & Relationship Functioning
+
+```{r Prenatal Synchrony & Prenatal Paternal Marital Satisfaction}
+linearPrenatalSynchrony_PaternalRelationshipSat <- lm(pnMaritalSat.2 ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_PaternalRelationshipSat)
+summary(linearPrenatalSynchrony_PaternalRelationshipSat)
+```
+
+```{r Graph Prenatal Synchrony & Prenatal Paternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony", y = "pnMaritalSat.2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Paternal Prenatal Relationship Satisfaction")
+```
+
+```{r Prenatal Synchrony & Postpartum Maternal Marital Satisfaction}
+linearPrenatalSynchrony_PaternalRelationshipSat <- lm(MAT1pp ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_PaternalRelationshipSat)
+summary(linearPrenatalSynchrony_PaternalRelationshipSat)
+```
+
+```{r Graph Prenatal Synchrony & Postpartum Maternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony", y = "MAT1pp", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Maternal Pospartum Relationship Satisfaction")
+```
+
+```{r Prenatal Synchrony & Postpartum Paternal Marital Satisfaction}
+linearPrenatalSynchrony_PaternalRelationshipSat <- lm(MAT2pp ~ synchrony, data=finaldt_4)  # build linear regression model on full data
+print(linearPrenatalSynchrony_PaternalRelationshipSat)
+summary(linearPrenatalSynchrony_PaternalRelationshipSat)
+```
+
+```{r Graph Prenatal Synchrony & Postpartum Paternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony", y = "MAT2pp", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Prenatal Synchrony", ylab = "Paternal Pospartum Relationship Satisfaction")
+```
+
+```{r Postpartum Synchrony & Postpartum Maternal Marital Satisfaction}
+linearPostpartumSynchrony_MaternalRelationshipSat <- lm(MAT1pp ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_MaternalRelationshipSat)
+summary(linearPostpartumSynchrony_MaternalRelationshipSat)
+```
+
+```{r Graph Postpartum Synchrony & Postpartum Maternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony_2", y = "MAT1pp", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Maternal Pospartum Relationship Satisfaction")
+```
+
+```{r Postpartum Synchrony & Postpartum Paternal Marital Satisfaction}
+linearPostpartumSynchrony_PaternalRelationshipSat <- lm(MAT2pp ~ synchrony_2, data=finaldt_4)  # build linear regression model on full data
+print(linearPostpartumSynchrony_PaternalRelationshipSat)
+summary(linearPostpartumSynchrony_PaternalRelationshipSat)
+```
+
+```{r Graph Postpartum Synchrony & Postpartum Paternal Marital Satisfaction}
+ggscatter(finaldt_4, x = "synchrony_2", y = "MAT2pp", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Postpartum Synchrony", ylab = "Paternal Pospartum Relationship Satisfaction")
+```
+
+# T-tests with first t variables
+
+```{r}
+# paired t-test
+Mom_change <- t.test(finaldt_4$Mompn1, finaldt_4$Mompp1,paired=TRUE,na.action = na.omit) # where y1 & y2 are numeric
+``` 
+
+```{r Result}
+Mom_change
+```
+
+```{r}
+# First distribution
+hist(finaldt_4$Mompn1, breaks=5, xlim=c(0,55), col=rgb(1,0,0,0.5), xlab="Testosterone Level", 
+     ylab="Frequency", main="Mothers' Prenatal and Postpatum Testosterone")
+
+# Second with add=T to plot on top
+hist(finaldt_4$Mompp1, breaks=5, xlim=c(0,55), col=rgb(0,0,1,0.5), add=T)
+
+# Add legend
+legend("topright", legend=c("Prenatal","Postpartum"), col=c(rgb(1,0,0,0.5), 
+     rgb(0,0,1,0.5)), pt.cex=2, pch=15 )
+```
+
+```{r}
+# paired t-test
+Dad_change <- t.test(finaldt_4$Dadpn1,finaldt_4$Dadpp1,paired=TRUE,na.action = na.omit) 
+``` 
+
+```{r}
+Dad_change
+```
+
+```{r Bar graph of male prenatal and postpartum testosterone}
+# First distribution
+hist(finaldt_4$Dadpn1, breaks=10, xlim=c(0,150), col=rgb(1,0,0,0.5), xlab="Testosterone Level", 
+     ylab="Frequency", main="Fathers' Prenatal and Postpatum Testosterone" )
+
+# Second with add=T to plot on top
+hist(finaldt_4$Dadpp1, breaks=10, xlim=c(0,150), col=rgb(0,0,1,0.5), add=T)
+
+# Add legend
+legend("topright", legend=c("Prenatal","Postpartum"), col=c(rgb(1,0,0,0.5), 
+     rgb(0,0,1,0.5)), pt.cex=2, pch=15 )
+```
+
+# Participant descriptives
+
+```{r Age_Mother}
+Age_Mother <- stat.desc(finaldt_4$pnAge_1.1)
+Age_Mother 
+
+```
+
+```{r Age_Father}
+Age_Father <- stat.desc(finaldt_4$pnAge_1.2)
+Age_Father
+```
+
+```{r Months Pregnant at Prenatal Visit}
+monthspreg <- stat.desc(finaldt_4$monthspreg.1)
+monthspreg
+```
+
+```{r Baby Age at Postpartum Visit}
+Baby_age <- stat.desc(finaldt_4$bage6pp.months)
+Baby_age
+```
+
+```{r Couples_Married or Enengaged }
+Couple_RelStat <- table(finaldt_4$RelStat)
+Couple_RelStat <- prop.table(Couple_RelStat)
+Couple_RelStat
+table(finaldt_4$RelStat)
+```
+
+```{r Education_Mother}
+Education_Mother <- table(finaldt_4$Education.1)
+prop.table(Education_Mother)
+table(finaldt_4$Education.1)
+```
+
+```{r Education_Father}
+Education_Father <- table(finaldt_4$Education.2)
+prop.table(Education_Father)
+table(finaldt_4$Education.2)
+```
+
+```{r Ethnicity_Mother}
+Ethnicity_Mother <- table(finaldt_4$Ethnicity.1)
+prop.table(Ethnicity_Mother)
+table(finaldt_4$Ethnicity.1)
+```
+
+```{r Ethnicity_Father}
+Ethnicity_Father <-table(finaldt_4$Ethnicity.2)
+prop.table(Ethnicity_Father)
+table(finaldt_4$Ethnicity.2)
+```
+
+# Descriptive Statistics of Self-Reported Measures
+
+```{r Wide Data to Long Format}
+# Using the new `tidyr::pivot_longer()` function
+Long_finaldt_4 <- finaldt_4 %>% 
+  pivot_longer(
+    c(Mompn1:Mompn3, Dadpn1:Dadpn3, Mompp1:Mompp3, Dadpp1:Dadpp3), # variables that are repeated measures
+    # Convert 8 columns to 3: 2 columns each for anti/read (.value), and 
+    # one column for time
+    names_to = c(".value", "Testo_Measurement"),
+    # Extract the names "anti"/"read" from the names of the variables for the 
+    # value columns, and then the number to the "time" column
+    names_pattern = "(Mompn|Dadpn|Mompp|Dadpp)([1-3])", 
+    # Convert the "time" column to integers
+    names_transform = list(time = as.integer)
+    )
+Long_finaldt_4 %>% 
+  select(CoupID, Testo_Measurement, Mompn, Dadpn, Mompp, Dadpp, everything())
+```
+
+```{r}
+Long_finaldt_4 <- Long_finaldt_4 %>% 
+    mutate(Dad_Change = DadTesto1 - DadTesto2)
+```
+
+# Preliminary analyses of the hormones
+
+```{r Analyses_Repeated measure anova Mom x Pre x Time}
+summary(aov(Mompn ~ Testo_Measurement, data=Long_finaldt_4))
+```
+
+```{r Figure_Mom testosterone during prenatal visit}
+ggline(Long_finaldt_4, x = "Testo_Measurement", y = "Mompn", 
+       add = c("mean_se", "jitter"), 
+       order = c("1", "2", "3"),
+       ylab = "Mothers' Prenatal Testosterone", xlab = "Prenatal Testosterone Measurements")
+```
+
+```{r Analyses_Repeated measure anova Dad x Pre x Time}
+summary(aov(Dadpn ~ Testo_Measurement, data=Long_finaldt_4))
+```
+
+```{r Figure_Dad testosterone during prenatal visit}
+ggline(Long_finaldt_4, x = "Testo_Measurement", y = "Dadpn", 
+       add = c("mean_se", "jitter"), 
+       order = c("1", "2", "3"),
+       ylab = "Fathers' Prenatal Testosterone", xlab = "Prenatal Testosterone Measurements")
+```
+
+```{r ANOVA of Dadpn and Time}
+pairwise.t.test(Long_finaldt_4$Dadpn, Long_finaldt_4$Testo_Measurement, p.adj = "none", data=Long_finaldt_4)
+```
+
+```{r T-test of fathers 2nd and 3rd prenatal time points}
+# paired t-test
+Sec_Thir_pn_Test <- t.test(finaldt_4$Dadpn2,finaldt_4$Dadpn3,paired=TRUE,na.action = na.omit) # where y1 & y2 are numeric
+``` 
+
+```{r Result in T-test of fathers 2nd and 3rd prenatal time points}
+Sec_Thir_pn_Test
+```
+
+```{r Analyses_Repeated measure anova Mom x Post x Time}
+summary(aov(Mompp ~ Testo_Measurement, data=Long_finaldt_4))
+```
+
+```{r Figure_Mom testosterone during postpartum visit}
+ggline(Long_finaldt_4, x = "Testo_Measurement", y = "Mompp", 
+       add = c("mean_se", "jitter"), 
+       order = c("1", "2", "3"),
+       ylab = "Mothers' Postpartum Testosterone", xlab = "Postpartum Testosterone Measurements")
+```
+
+```{r Analyses_Repeated measure anova Dad x Post x Time}
+summary(aov(Dadpp ~ Testo_Measurement, data=Long_finaldt_4))
+```
+
+```{r Analyses_Figure_Dad testosterone during prenatal visit}
+ggline(Long_finaldt_4, x = "Testo_Measurement", y = "Dadpp", 
+       add = c("mean_se", "jitter"), 
+       order = c("1", "2", "3"),
+       ylab = "Fathers' Postpartum Testosterone", xlab = "Postpartum Testosterone Measurements")
+```
+
+```{r T-test of mothers prenatal to postpartum testosterone}
+
+Mom_change <- t.test(Long_finaldt_4$MomTesto1,Long_finaldt_4$MomTesto2,paired=TRUE,na.action = na.omit) # where y1 & y2 are numeric
+``` 
+
+```{r}
+Mom_change
+```
+
+```{r Bar graph of female prenatal and postpartum testosterone}
+# First distribution
+hist(finaldt_4$Mompn1, breaks=5, xlim=c(0,55), col=rgb(1,0,0,0.5), xlab="Testosterone Level", 
+     ylab="Frequency", main="Mothers' Prenatal and Postpatum Testosterone" )
+
+# Second with add=T to plot on top
+hist(finaldt_4$Mompp1, breaks=5, xlim=c(0,55), col=rgb(0,0,1,0.5), add=T)
+
+# Add legend
+legend("topright", legend=c("Prenatal","Postpartum"), col=c(rgb(1,0,0,0.5), 
+     rgb(0,0,1,0.5)), pt.cex=2, pch=15 )
+```
+
+```{r T-test male prenatal and postpartum testosterone}
+# paired t-test
+Dad_change <- t.test(finaldt_4$Dadpn1,finaldt_4$Dadpp1,paired=TRUE,na.action = na.omit) 
+``` 
+
+```{r}
+Dad_change
+```
+
+```{r}
+# First distribution
+hist(finaldt_4$Dadpn1, breaks=10, xlim=c(0,150), col=rgb(1,0,0,0.5), xlab="Testosterone Level", 
+     ylab="Frequency", main="Fathers' Prenatal and Postpatum Testosterone" )
+
+# Second with add=T to plot on top
+hist(finaldt_4$Dadpp1, breaks=10, xlim=c(0,150), col=rgb(0,0,1,0.5), add=T)
+
+# Add legend
+legend("topright", legend=c("Prenatal","Postpartum"), col=c(rgb(1,0,0,0.5), 
+     rgb(0,0,1,0.5)), pt.cex=2, pch=15 )
+```
+
+```{r Testosterone_Prenatal_Mother}
+Testosterone_Prenatal_Mother <- stat.desc(finaldt_4$Mompn1)
+Testosterone_Prenatal_Mother
+```
+
+```{r Testosterone_Prenatal_Father}
+Testosterone_Prenatal_Father <- stat.desc(finaldt_4$Dadpn1)
+Testosterone_Prenatal_Father
+```
+
+```{r Testosterone_Postpartuml_Mother}
+Testosterone_Postpartuml_Mother <- stat.desc(finaldt_4$Mompp1)
+Testosterone_Postpartuml_Mother
+```
+
+```{r Testosterone_Postpartuml_Father}
+Testosterone_Postpartuml_Father <- stat.desc(finaldt_4$Dadpp1)
+Testosterone_Postpartuml_Father
+```
+
+```{r Testosterone Change Father}
+Testosterone_Change_Father <- stat.desc(df_WIDE$Dad_Change)
+Testosterone_Change_Father
+```
+
+```{r Mother Postpartum Relationship Functioning}
+Relationship_Satisfaction_Postpartum_Mother <- stat.desc(finaldt_4$DAStotpp.1)
+Relationship_Satisfaction_Postpartum_Mother
+```
+
+```{r Father Postpartum Relationship Functioning}
+Relationship_Satisfaction_Postpartum_Father <- stat.desc(finaldt_4$DAStotpp.2)
+Relationship_Satisfaction_Postpartum_Father
+```
+
+```{r Mother Postpartum Marital Satisfaction}
+Marital_Satisfaction_Postpartum_Mother <- stat.desc(finaldt_4$MAT1pp)
+Marital_Satisfaction_Postpartum_Mother
+```
+
+```{r Father Postpartum Marital Satisfaction}
+Marital_Satisfaction_Postpartum_Father <- stat.desc(finaldt_4$MAT2pp)
+Marital_Satisfaction_Postpartum_Father
+```
+
+```{r Mother Postpartum Parenting Behavior}
+Parenting_Behavior_Postpartum_Mother <- stat.desc(finaldt_4$PARYCtot.1)
+Parenting_Behavior_Postpartum_Mother
+```
+
+```{r Father Postpartum Parenting Behavior}
+Parenting_Behavior_Postpartum_Father <- stat.desc(finaldt_4$PARYCtot.2)
+Parenting_Behavior_Postpartum_Father
+```
+
+```{r Mother Postpartum Bonding}
+Bonding_Postpartum_Mother <- stat.desc(finaldt_4$PBQ.1)
+Bonding_Postpartum_Mother
+```
+
+```{r Father Postpartum Bonding}
+Bonding_Postpartum_Father <- stat.desc(finaldt_4$PBQ.2)
+Bonding_Postpartum_Father
+```
+
+# Correlation of main study variables
+
+```{r # data }
+
+Corr_var <- finaldt_4 %>% 
+  select(pnAge_1.1, pnAge_1.2, monthspreg.1, bage6pp, Mompn1, Dadpn1, Mompp1, Dadpp1, Dad_Change, DAStotpp.1, DAStotpp.2, MAT1pp, MAT2pp, PARYCtot.1, PARYCtot.2, PBQ.1, PBQ.2)
+
+```
+
+```{r}
+res <- cor(Corr_var, use = "pairwise.complete.obs")
+round(res, 2)
+```
+
+```{r}
+library("Hmisc")
+res2 <- rcorr(as.matrix(Corr_var))
+res2
+```
