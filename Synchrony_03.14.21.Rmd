@@ -1,0 +1,609 @@
+---
+title: "Synchrony_03.14.21"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Preparation of R packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load packages, message=FALSE}
+
+# Add additional packages you need
+# To install a package, run the following ONCE (and only once on your computer)
+# install.packages("psych")  
+# install.packages ("ggpubr")
+# install.packages("Publish")
+# install.packages("ggubr")
+# install.packages("corrplot")
+# install.packages("RColorBrewer")
+# install.packages("ggpubr")
+# install.packages("lme4")
+# install.packages("lmerTest")
+# install.packages("multilevelTools")
+# install.packages("pastecs")
+# install.packages("qwraps2")
+# install.packages(apaTables)
+# install.packages(apa.d.table)
+# install.packages(apa.descriptive)
+# install.packages(apa.cor.table)
+# install.packages(Gmisc)
+# install.packages('ltm')
+# install.packages("Hmisc")
+# install.packages("reshape2")
+
+library(ltm)
+library(qwraps2)
+library(multilevelTools)
+library(lme4)
+library(lmerTest)
+library(ggpubr)
+library(Publish) 
+library(here)  # makes reading data more consistent
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(sjPlot)  # for plotting effects
+library(broom.mixed)  # for summarizing results
+library(interactions)  # for plotting interactions
+library(modelsummary)  # for making tables
+library(psych)
+library(ggpubr)
+library(lmerTest)
+library(corrplot)
+library(RColorBrewer)
+library(ggpubr)
+library(pastecs)
+library(apaTables)
+library(tidyr)
+library(dplyr)
+library(tidyverse)  # for data manipulation and plotting
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(interactions)  # for plotting interaction
+library(rstan)
+library(foreign)
+library(foreign)
+library(reshape2)
+
+# Add the following so that the LOO will be included in the msummary table
+msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
+  if (is.null(coef_map)) {
+    if (!"list" %in% class(models)) {
+      models <- list(models)
+    }
+    for (model in models) {
+      coef_map <- union(coef_map, tidy(model)$term)
+    }
+  }
+  ranef_index <- grep("^(sd|cor)__", x = coef_map)
+  coef_map <- c(coef_map[-ranef_index], coef_map[ranef_index])
+  names(coef_map) <- coef_map
+library(dplyr)
+  rows <- data.frame(term = c("Fixed Effects", "Random Effects"))
+  rows <- cbind(rows, rbind(rep("", length(models)), 
+                            rep("", length(models))))
+  length_fes <- length(coef_map) - length(ranef_index)
+  attr(rows, 'position') <- c(1, (length_fes + 1) * 2)
+  modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
+}
+theme_set(theme_bw())  # Theme; just my personal preference
+```
+
+## When working with new SPSS folder, rename Test Variables in SPSS
+
+1. Current OG file: HATCH 7.31.2020
+
+2. Current renamed file: HATCH_07.31.20_08.08.21
+
+3. Rename testosterone variables in SPSS...
+Testo1pn.1.trunc--->Mom11
+Testo3pn.1.trunc--->Mom21
+Testo6pn.1.trunc--->Mom31
+Testo1pp.1trunc--->Mom42
+Testo3pp.1trunc--->Mom52
+Testo6pp.1trunc--->Mom62
+Testo1pn.2.trunc--->Dad11
+Testo3pn.2.trunc--->Dad21
+Testo6pn.2.trunc--->Dad31
+Testo1pp.2.00--->Dad42
+Testo3pp.2.00--->Dad52
+Testo6pp.2.00--->Dad62
+
+4. Make new variable by calculate average scores in SPSS...
+(The syntax is HATCH_07.31.20_08.08.21)
+MomTesto1 (which is the average of mom prenatal testosterone)
+MomTesto2 (which is the average of mom postpartum testosterone)
+DadTesto1 (which is the average of dad prenatal testosterone)
+DadTesto2 (which is the average of dad postpartum testosterone)
+DadAge (which is the average of dad age)
+
+5.Organize these variables to the front...
+CoupID
+RelStat
+bage6pp
+GestationalAgeWeeks
+pnAge_1.1
+pnAge_1.2
+Age_1.1
+Age_1.2
+DadAge
+Ethnicity.1
+Ethnicity.2
+Education.1
+Education.2
+Mom111
+Mom221
+Mom331
+Mom412
+Mom522
+Mom632
+Dad111
+Dad221
+Dad331
+Dad412
+Dad522
+Dad632
+MomTesto1
+MomTesto2
+DadTesto1
+DadTesto2
+PARYCse.1
+PARYCse.2
+PARYCpa.1
+PARYCpa.2
+PARYCtot.1
+PARYCtot.2
+DAStotpp.1
+DAStotpp.2
+pnMaritalSat.1
+pnMaritalSat.2
+MAT1pp
+MAT2pp
+PBQ.1
+PBQ.2
+
+# Data preparation
+
+```{r}
+df_WIDE <- read.spss('/Users/sofiacardenas/Desktop/April_30_MLM/Final_Project/4.Analyses/HATCH_07.31.20_08.08.21.sav')
+```
+
+```{r}
+df_WIDE$Baby.sex <- factor(df_WIDE$Baby.sex)
+```
+
+```{r}
+df_WIDE <- data.frame(df_WIDE)
+```
+
+
+```{r}
+boxplot(df_WIDE$Mom111,data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Mom221, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Mom331, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Mom412, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Mom522, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Mom632,data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+
+```{r}
+boxplot(df_WIDE$Dad111,data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Dad221, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Dad331, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Dad412, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Dad522, data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(df_WIDE$Dad632,data=df_WIDE, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+# Using the new `tidyr::pivot_longer()` function
+df_LONG <- df_WIDE %>% 
+  pivot_longer(
+    c(Mom111:Dad632), # variables that are repeated measures
+    # Convert 8 columns to 3: 2 columns each for anti/read (.value), and 
+    # one column for time
+    names_to = c(".value", "Testo_Measurement", "Sample", "Time"),
+    # Extract the names "anti"/"read" from the names of the variables for the 
+    # value columns, and then the number to the "time" column
+    names_pattern = "(Mom|Dad)([1-6])([1-3])([1-2])", 
+    # Convert the "time" column to integers
+    names_transform = list(time = as.integer)
+    )
+df_LONG %>% 
+  select(CoupID, Testo_Measurement, Time, Mom, Dad, everything())
+``` 
+
+# Unconditional model for dad testosterone 
+```{r }
+m0_Model_daddy <- brm(Dad ~ (1 | CoupID), 
+                      seed = 2152, control = list(max_treedepth = 15), chains = 8,iter = 4000, data = df_LONG)
+
+echo=FALSE
+```
+
+# Print unconditional model for dad testosterone 
+```{r}
+m0_Model_daddy
+```
+
+# Using dad unconditional model to assess prenatal intra-class correlation and decompose variance
+
+```{r}
+# Warning: Rows containing NAs were excluded from the model.
+testo_daddy <- posterior_samples(m0_Model_daddy, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_daddy <- testo_daddy$sd_CoupID__Intercept^2 / 
+  (testo_daddy$sd_CoupID__Intercept^2 + testo_daddy$sigma^2)
+
+# Print ICCs
+c(daddy = mean(icc_samples_daddy))
+```
+
+# Unconditional model for mom testosterone 
+```{r }
+m0_Model_mommy <- brm(Mom ~ (1 | CoupID), 
+                      seed = 2154, control = list(max_treedepth = 15), chains = 8,iter = 4000, data = df_LONG)
+
+echo=FALSE
+```
+
+# Print unconditional model for mom testosterone 
+```{r}
+m0_Model_mommy
+```
+
+# Using mom unconditional model to assess prenatal intra-class correlation and decompose variance
+
+```{r}
+# Warning: Rows containing NAs were excluded from the model.
+# Daddy (expectant dad-testosterone)
+testo_mommy <- posterior_samples(m0_Model_mommy, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_mommy <- testo_mommy$sd_CoupID__Intercept^2 / 
+  (testo_mommy$sd_CoupID__Intercept^2 + testo_mommy$sigma^2)
+
+# Print ICCs
+c(mommy = mean(icc_samples_mommy))
+```
+
+# Cluster-mean centering of mom testosterone, fit a model that decomposes the association between dad and mom testosteone into the person-level and the couple-level effects.
+```{r}
+df_LONG <- df_LONG %>% 
+  group_by(CoupID) %>%   # operate within countrr
+  mutate(Mom_cm = mean(Mom),   # create cluster means (the same as  `meanses`)
+         Mom_cmc = Mom - Mom_cm) %>%   # cluster-mean centered
+  ungroup()  # exit the "editing within groups" mode
+```
+
+# Hypothesis 1 
+
+```{r Prenatal MLM model }
+Bayesian_Synchrony <- brm(Dad ~ Time + Mom_cm + Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 1 Model 
+
+```{r}
+Bayesian_Synchrony
+```
+
+```{r }
+augment(Bayesian_Synchrony) %>% 
+  mutate(Mom = Mom_cmc + Mom_cm) %>% 
+  ggplot(aes(x = Mom, y = Dad, color = factor(CoupID))) +
+  # Add points
+  geom_point(size = 0.5, alpha = 0.2) + 
+  # Add within-cluster lines
+  geom_smooth(aes(y = .fitted), 
+              method = "lm", se = FALSE, size = 0.5) + 
+  # Add group means
+  stat_summary(aes(x = Mom, y = .fitted, 
+                   fill = factor(CoupID)), 
+               color = "red",  # add border
+               fun = mean, 
+               geom = "point",
+               shape = 24,
+               # use triangles
+               size = 2.5) + 
+  # Add between coefficient
+  geom_smooth(aes(x = Mom, y = .fitted), 
+              method = "lm", se = TRUE, 
+              color = "black") + 
+  labs(y = "Dad") + 
+  # Suppress legend
+  guides(color = FALSE, fill = FALSE)
+```
+
+# Restructuring data for Hypothesis 2
+
+```{r}
+df_WIDE_2 <- read.spss('/Users/sofiacardenas/Desktop/April_30_MLM/Final_Project/4.Analyses/HATCH_07.31.20_08.08.21_H2.sav')
+```
+```{r}
+df_WIDE_2 <- data.frame(df_WIDE_2)
+```
+
+# Look at data
+```{r}
+head(df_WIDE_2)
+```
+
+# Pivot the data 
+
+```{r}
+# Using the new `tidyr::pivot_longer()` function
+df_LONG_2 <- df_WIDE_2 %>% 
+  pivot_longer(
+    cols = c(MomPre1:DadPost3), # variables that are repeated measures
+    # Convert 8 columns to 3: 2 columns each for anti/read (.value), and 
+    # one column for time
+    names_to = c(".value", "Sample"),
+    # Extract the names "anti"/"read" from the names of the variables for the 
+    # value columns, and then the number to the "time" column
+    names_pattern = "(MomPre|MomPost|DadPre|DadPost)([1-3])", 
+    # Convert the "time" column to integers
+    names_transform = list(time = as.integer)
+    )
+df_LONG_2 %>% 
+  select(CoupID, Sample, MomPre, MomPost, DadPre, DadPost, everything())
+``` 
+
+
+```{r}
+df_LONG_2
+```
+# Look at outliers
+```{r}
+boxplot(MomPre~Sample,data=df_LONG_2, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(MomPost~Sample,data=df_LONG_2, main="Mom Postpartum Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(DadPre~Sample,data=df_LONG_2, main="Dad Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(DadPost~Sample,data=df_LONG_2, main="Dad Postpartum Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+# Reformating the data for mean centering
+```{r}
+df_LONG_2 <- df_LONG_2 %>% 
+  group_by(CoupID) %>% # operate within countrr
+  mutate(MomPre_cm = mean(MomPre), # create cluster means (the same as `meanses`)s
+         MomPre_cmc = MomPre - MomPre_cm, # cluster-mean centered
+         DadPost_cm = mean(DadPost)) %>% # create cluster means (the same as `meanses`)
+  ungroup()  # exit the "editing within groups" mode
+```
+
+# Look at outliers
+```{r}
+boxplot(MomPre_cm~Sample,data=df_LONG_2, main="Mom Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(MomPre_cmc~Sample,data=df_LONG_2, main="Mom Postpartum Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(DadPost_cm~Sample,data=df_LONG_2, main="Dad Prenatal Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+```{r}
+boxplot(DadPost~Sample,data=df_LONG_2, main="Dad Postpartum Testosterone Data",
+   xlab="Sample", ylab="Testosterone level")
+```
+
+# Hypothesis 2 whether prenatal couple synchrony is a predictor of over all testosterone reductions in men
+
+```{r}
+Bayesian_Synchrony_Reductions <- brm(DadPre ~ MomPre_cm + MomPre_cmc + MomPre_cm*DadPost_cm + MomPre_cmc*DadPost_cm + (MomPre_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG_2)
+```
+
+
+```{r}
+Bayesian_Synchrony_Reductions
+```
+
+# Hypothesis 3 Synchrony X Relationship Functioning 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_RelFunct <- brm(Dad ~ DAStotpp.2 + Time + Mom_cm + Mom_cmc + DAStotpp.2*Time + DAStotpp.2*Mom_cm +  DAStotpp.2*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Relationship Functioning 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_RelFunct
+```
+# Hypothesis 3 Synchrony X Marital Satistifaction 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_MarSat <- brm(Dad ~ MAT2pp + Time + Mom_cm + Mom_cmc + MAT2pp*Time + MAT2pp*Mom_cm +  MAT2pp*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Marital Satistifaction 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_MarSat
+```
+# Hypothesis 3 Synchrony X Parenting Functioning 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Parenting <- brm(Dad ~ PARYCtot.2 + Time + Mom_cm + Mom_cmc + PARYCtot.2*Time + PARYCtot.2*Mom_cm + PARYCtot.2 *Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Parenting 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Parenting
+```
+
+# Hypothesis 3 Synchrony X Parenting Bonding 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Bonding <- brm(Dad ~ PBQ.2 + Time + Mom_cm + Mom_cmc + PBQ.2*Time + PBQ.2*Mom_cm + PBQ.2*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Parenting Bonding 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Bonding
+```
+
+# Hypothesis 3 Synchrony X Relationship Functioning Mom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_RelFunct_Mom <- brm(Dad ~ DAStotpp.1 + Time + Mom_cm + Mom_cmc + DAStotpp.1*Time + DAStotpp.1*Mom_cm +  DAStotpp.1*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Relationship Functioning Mom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_RelFunct_Mom
+```
+
+# Hypothesis 3 Synchrony X Marital Satistifaction Mom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_MarSat_Mom <- brm(Dad ~ MAT1pp + Time + Mom_cm + Mom_cmc + MAT1pp*Time + MAT1pp*Mom_cm +  MAT1pp*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Marital Satistifaction Mom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_MarSat_Mom
+```
+# Hypothesis 3 Synchrony X Parenting Functioning Mom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Parenting_Mom <- brm(Dad ~ PARYCtot.1 + Time + Mom_cm + Mom_cmc + PARYCtot.1*Time + PARYCtot.1*Mom_cm + PARYCtot.1 *Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Parenting 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Parenting_Mom
+```
+
+# Hypothesis 3 Synchrony X Parenting Bonding MOom
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Bonding_Mom <- brm(Dad ~ PBQ.1 + Time + Mom_cm + Mom_cmc + PBQ.1*Time + PBQ.1*Mom_cm + PBQ.1*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Parenting Bonding 
+
+```{r}
+Bayesian_Synchrony_WO_Cross_Bonding_Mom
+```
