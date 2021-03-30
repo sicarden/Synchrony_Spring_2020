@@ -1,0 +1,615 @@
+---
+title: "Synchrony_03.29.21_Continuous_Time"
+output:
+  html_document: default
+  pdf_document: default
+  toc: true
+  toc_depth: 3  
+---
+
+## Preparation of R packages
+
+```{r, setup=FALSE, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, Load packages, warning = FALSE, message=FALSE, echo=FALSE}
+
+# Add additional packages you need
+# To install a package, run the following ONCE (and only once on your computer)
+# install.packages("psych")  
+# install.packages ("ggpubr")
+# install.packages("Publish")
+# install.packages("ggubr")
+# install.packages("corrplot")
+# install.packages("RColorBrewer")
+# install.packages("ggpubr")
+# install.packages("lme4")
+# install.packages("lmerTest")
+# install.packages("multilevelTools")
+# install.packages("pastecs")
+# install.packages("qwraps2")
+# install.packages(apaTables)
+# install.packages(apa.d.table)
+# install.packages(apa.descriptive)
+# install.packages(apa.cor.table)
+# install.packages(Gmisc)
+# install.packages('ltm')
+# install.packages("Hmisc")
+# install.packages("reshape2")
+
+library(ltm)
+library(qwraps2)
+library(multilevelTools)
+library(lme4)
+library(lmerTest)
+library(ggpubr)
+library(Publish) 
+library(here)  # makes reading data more consistent
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(sjPlot)  # for plotting effects
+library(broom.mixed)  # for summarizing results
+library(interactions)  # for plotting interactions
+library(modelsummary)  # for making tables
+library(psych)
+library(ggpubr)
+library(lmerTest)
+library(corrplot)
+library(RColorBrewer)
+library(ggpubr)
+library(pastecs)
+library(apaTables)
+library(tidyr)
+library(dplyr)
+library(tidyverse)  # for data manipulation and plotting
+library(haven)  # for importing SPSS/SAS/Stata data
+library(brms)  # for Bayesian multilevel analysis
+library(lattice)  # for dotplot (working with lme4)
+library(interactions)  # for plotting interaction
+library(rstan)
+library(foreign)
+library(foreign)
+library(reshape2)
+
+# Add the following so that the LOO will be included in the msummary table
+msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
+  if (is.null(coef_map)) {
+    if (!"list" %in% class(models)) {
+      models <- list(models)
+    }
+    for (model in models) {
+      coef_map <- union(coef_map, tidy(model)$term)
+    }
+  }
+  ranef_index <- grep("^(sd|cor)__", x = coef_map)
+  coef_map <- c(coef_map[-ranef_index], coef_map[ranef_index])
+  names(coef_map) <- coef_map
+library(dplyr)
+  rows <- data.frame(term = c("Fixed Effects", "Random Effects"))
+  rows <- cbind(rows, rbind(rep("", length(models)), 
+                            rep("", length(models))))
+  length_fes <- length(coef_map) - length(ranef_index)
+  attr(rows, 'position') <- c(1, (length_fes + 1) * 2)
+  modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
+}
+theme_set(theme_bw())  # Theme; just my personal preference
+```
+
+## When working with new SPSS folder, rename Test Variables in SPSS
+
+1. Current OG file: HATCH 7.31.2020
+
+2. Current renamed file: HATCH_07.31.20_08.08.21
+
+3. Rename testosterone variables in SPSS...
+Testo1pn.1.trunc--->Mom11
+Testo3pn.1.trunc--->Mom21
+Testo6pn.1.trunc--->Mom31
+Testo1pp.1trunc--->Mom42
+Testo3pp.1trunc--->Mom52
+Testo6pp.1trunc--->Mom62
+Testo1pn.2.trunc--->Dad11
+Testo3pn.2.trunc--->Dad21
+Testo6pn.2.trunc--->Dad31
+Testo1pp.2.00--->Dad42
+Testo3pp.2.00--->Dad52
+Testo6pp.2.00--->Dad62
+
+4. Make new variable by calculate average scores in SPSS...
+(The syntax is HATCH_07.31.20_08.08.21)
+MomTesto1 (which is the average of mom prenatal testosterone)
+MomTesto2 (which is the average of mom postpartum testosterone)
+DadTesto1 (which is the average of dad prenatal testosterone)
+DadTesto2 (which is the average of dad postpartum testosterone)
+DadAge (which is the average of dad age)
+
+5.Organize these variables to the front...
+CoupID
+RelStat
+bage6pp
+GestationalAgeWeeks
+pnAge_1.1
+pnAge_1.2
+Age_1.1
+Age_1.2
+DadAge
+Ethnicity.1
+Ethnicity.2
+Education.1
+Education.2
+Mom111
+Mom221
+Mom331
+Mom412
+Mom522
+Mom632
+Dad111
+Dad221
+Dad331
+Dad412
+Dad522
+Dad632
+MomTesto1
+MomTesto2
+DadTesto1
+DadTesto2
+PARYCse.1
+PARYCse.2
+PARYCpa.1
+PARYCpa.2
+PARYCtot.1
+PARYCtot.2
+DAStotpp.1
+DAStotpp.2
+pnMaritalSat.1
+pnMaritalSat.2
+MAT1pp
+MAT2pp
+PBQ.1
+PBQ.2
+
+# Data preparation
+
+```{r , warning = FALSE, message=FALSE, message=FALSE}
+df_WIDE <- read.spss('/Users/sofiacardenas/Desktop/April_30_MLM/Final_Project/4.Analyses/HATCH_07.31.20_08.08.21.sav')
+```
+
+```{r, warning = FALSE, message=FALSE, message=FALSE}
+df_WIDE$Baby.sex <- factor(df_WIDE$Baby.sex)
+```
+
+```{r, warning = FALSE, message=FALSE, message=FALSE}
+df_WIDE <- data.frame(df_WIDE)
+```
+
+# Convert factor continuous wkday and wkend hours 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_WIDE$weeksbfdue.2 <- as.numeric(df_WIDE$weeksbfdue.2)
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_WIDE$bage6pp <- as.numeric(df_WIDE$bage6pp)
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_WIDE <- read.spss('/Users/sofiacardenas/Desktop/April_30_MLM/Final_Project/4.Analyses/HATCH_07.31.20_08.08.21.sav')
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_WIDE$Baby.sex <- factor(df_WIDE$Baby.sex)
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_WIDE <- data.frame(df_WIDE)
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+# Using the new `tidyr::pivot_longer()` function
+df_LONG <- df_WIDE %>% 
+  pivot_longer(
+    c(Mom111:Dad632), # variables that are repeated measures
+    # Convert 8 columns to 3: 2 columns each for anti/read (.value), and 
+    # one column for time
+    names_to = c(".value", "Testo_Measurement", "Sample", "Time"),
+    # Extract the names "anti"/"read" from the names of the variables for the 
+    # value columns, and then the number to the "time" column
+    names_pattern = "(Mom|Dad)([1-6])([1-3])([1-2])", 
+    # Convert the "time" column to integers
+    names_transform = list(time = as.integer)
+    )
+``` 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+df_LONG %>% 
+  select(CoupID, Testo_Measurement, weeksbfdue.2, bage6pp, Mom, Dad, everything())
+```
+
+# Unconditional model for dad testosterone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+m0_Model_daddy <- brm(Dad ~ (1 | CoupID), 
+                      seed = 2152, control = list(max_treedepth = 15), chains = 8,iter = 4000, data = df_LONG)
+
+echo=FALSE
+
+```
+
+# Print unconditional model for dad testosterone 
+
+# Using dad unconditional model to assess prenatal intra-class correlation and decompose variance
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+# Warning: Rows containing NAs were excluded from the model.
+testo_daddy <- posterior_samples(m0_Model_daddy, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_daddy <- testo_daddy$sd_CoupID__Intercept^2 / 
+  (testo_daddy$sd_CoupID__Intercept^2 + testo_daddy$sigma^2)
+
+# Print ICCs
+c(daddy = mean(icc_samples_daddy))
+```
+
+# Unconditional model for mom testosterone 
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+m0_Model_mommy <- brm(Mom ~ (1 | CoupID), 
+                      seed = 2154, control = list(max_treedepth = 15), chains = 8,iter = 4000, data = df_LONG)
+
+```
+
+# Print unconditional model for mom testosterone 
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+m0_Model_mommy
+```
+
+# Using mom unconditional model to assess prenatal intra-class correlation and decompose variance
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+# Warning: Rows containing NAs were excluded from the model.
+# Daddy (expectant dad-testosterone)
+testo_mommy <- posterior_samples(m0_Model_mommy, pars = c("sd", "sigma"))
+
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_mommy <- testo_mommy$sd_CoupID__Intercept^2 / 
+  (testo_mommy$sd_CoupID__Intercept^2 + testo_mommy$sigma^2)
+
+# Print ICCs
+c(mommy = mean(icc_samples_mommy))
+```
+
+# Cluster-mean centering of mom testosterone, fit a model that decomposes the association between dad and mom testosteone into the person-level and the couple-level effects.
+```{r, warning = FALSE, message=FALSE, message=FALSE, echo=FALSE}
+df_LONG <- df_LONG %>% 
+  group_by(CoupID) %>%   # operate within countrr
+  mutate(Mom_cm = mean(Mom),   # create cluster means (the same as  `meanses`)
+         Mom_cmc = Mom - Mom_cm) %>%   # cluster-mean centered
+  ungroup()  # exit the "editing within groups" mode
+```
+
+### Hypothesis 1 
+
+```{r, Prenatal MLM model, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony <- brm(Dad ~ weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+### Hypothesis 1 Model 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+augment(Bayesian_Synchrony) %>% 
+  mutate(Mom = Mom_cmc + Mom_cm) %>% 
+  ggplot(aes(x = Mom, y = Dad, color = factor(CoupID))) +
+  # Add points
+  geom_point(size = 0.5, alpha = 0.2) + 
+  # Add within-cluster lines
+  geom_smooth(aes(y = .fitted), 
+              method = "lm", se = FALSE, size = 0.5) + 
+  # Add group means
+  stat_summary(aes(x = Mom, y = .fitted, 
+                   fill = factor(CoupID)), 
+               color = "red",  # add border
+               fun = mean, 
+               geom = "point",
+               shape = 24,
+               # use triangles
+               size = 2.5) + 
+  # Add between coefficient
+  geom_smooth(aes(x = Mom, y = .fitted), 
+              method = "lm", se = TRUE, 
+              color = "black") + 
+  labs(y = "Dad") + 
+  # Suppress legend
+  guides(color = FALSE, fill = FALSE)
+```
+
+# Hypothesis 3 Synchrony X Postpartum Marital Satistifaction 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_Post_MarSat <- brm(Dad ~ MAT2pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + MAT2pp*weeksbfdue.2 + MAT2pp*bage6pp + MAT2pp*Mom_cm +  MAT2pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Postpartum Marital Satistifaction
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_Post_MarSat
+```
+
+# Convert factor continuous wkday and wkend hours 
+
+```{r,}
+df_LONG$wkdayhourswithbaby.1.6pp <- as.numeric(df_LONG$wkdayhourswithbaby.1.6pp)
+```
+
+```{r,}
+df_LONG$wkdayhourswithbaby.2.6pp <- as.numeric(df_LONG$wkdayhourswithbaby.2.6pp)
+```
+
+```{r,}
+df_LONG$wkendhourswithbaby.1.6pp <- as.numeric(df_LONG$wkendhourswithbaby.1.6pp)
+```
+
+```{r,}
+df_LONG$wkendhourswithbaby.2.6pp <- as.numeric(df_LONG$wkendhourswithbaby.2.6pp)
+```
+
+```{r,}
+df_LONG$wkdayalonewithbaby.1.6pp <- as.numeric(df_LONG$wkdayalonewithbaby.1.6pp)
+```
+
+```{r,}
+df_LONG$wkdayalonewithbaby.2.6pp <- as.numeric(df_LONG$wkdayalonewithbaby.2.6pp)
+```
+
+```{r,}
+df_LONG$wkendalonewithbaby.1.6pp <- as.numeric(df_LONG$wkendalonewithbaby.1.6pp)
+```
+
+```{r,}
+df_LONG$wkendhalonewithbaby.2.6pp <- as.numeric(df_LONG$wkendhalonewithbaby.2.6pp)
+```
+
+# Hypothesis 3 Equation Synchrony X Week time 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekhours <- brm(Dad ~ wkdayhourswithbaby.2.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkdayhourswithbaby.2.6pp*weeksbfdue.2 + wkdayhourswithbaby.2.6pp*bage6pp + wkdayhourswithbaby.2.6pp*Mom_cm + wkdayhourswithbaby.2.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Week time
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekhours
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_weekhours, 
+              pred = "Mom_cmc",
+              modx = "bage6pp",
+              modx.labels = "Weeks postpartum",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE,  # use this to make two panels
+              x.label = "Mothers' Cluster Mean Centered Testosterone", 
+              y.label = "Fathers' Testosterone")
+```
+
+# Hypothesis 3 Equation Synchrony X Week time alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekhoursalone <- brm(Dad ~ wkdayalonewithbaby.2.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkdayalonewithbaby.2.6pp*weeksbfdue.2 + wkdayhourswithbaby.2.6pp*bage6pp + wkdayalonewithbaby.2.6pp*Mom_cm + wkdayalonewithbaby.2.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+```
+
+# Hypothesis 3 Model Synchrony X Week time alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekhoursalone
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_weekhoursalone, 
+              pred = "Mom_cm",
+              modx = "wkdayalonewithbaby.2.6pp",
+              modx.labels = "Fathers' Weekday Hours Alone with Baby",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE, 
+              x.label = "Mothers' mean cluster centered testosterone", 
+              y.label = "Fathers' Testosterone")
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_weekhoursalone, 
+              pred = "weeksbfdue.2",
+              modx = "wkdayalonewithbaby.2.6pp",
+              modx.labels = "Fathers' Week Days Alone with Baby",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE, 
+              x.label = "Weeks Before Infant Due", 
+              y.label = "Fathers' Testosterone")
+```
+
+# Hypothesis 3 Equation Synchrony X Weekend time
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekendhours <- brm(Dad ~ wkendhourswithbaby.2.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + wkendhourswithbaby.2.6pp*weeksbfdue.2 + wkendhourswithbaby.2.6pp*bage6pp + wkendhourswithbaby.2.6pp*Mom_cm + wkendhourswithbaby.1.6pp*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Weekend time
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekendhours
+```
+
+# Hypothesis 3 Equation Synchrony X Weekend time alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekendhoursalone <- brm(Dad ~ wkendhalonewithbaby.2.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + wkendhalonewithbaby.2.6pp*weeksbfdue.2 + wkendhalonewithbaby.2.6pp*bage6pp + wkendhalonewithbaby.2.6pp*Mom_cm + wkendhalonewithbaby.2.6pp*Mom_cmc + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Weekend time alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekendhours
+```
+
+# Hypothesis 3 Synchrony X Prenatal Marital Satistifaction Mom
+
+```{r,, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_WO_Cross_MarSat_Mom_Pre <- brm(Dad ~ pnMaritalSat.1 + MAT1pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + pnMaritalSat.1*bage6pp + pnMaritalSat.1*weeksbfdue.2 + pnMaritalSat.1*Mom_cm +  pnMaritalSat.1*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Prenatal Marital Satistifaction Mom
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_WO_Cross_MarSat_Mom_Pre
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_WO_Cross_MarSat_Mom_Pre, 
+              pred = "pnMaritalSat.1",
+              modx = "weeksbfdue.2",
+              modx.labels = "Weeks Before Infant Due",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE,  # use this to make two panels
+              x.label = "Mothers prenatal Marital Satisfaction", 
+              y.label = "Fathers' Testosterone")
+```
+
+# Hypothesis 3 Equation Synchrony X Week time Mom 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekhours_Mom <- brm(Dad ~ wkdayhourswithbaby.1.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkdayhourswithbaby.1.6pp*weeksbfdue.2 + wkdayhourswithbaby.1.6pp*bage6pp + wkdayhourswithbaby.1.6pp*Mom_cm + wkdayhourswithbaby.1.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Week time Mom 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekhours_Mom
+```
+
+# Hypothesis 3 Equation Synchrony X Week time Mom alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekhours_Momalone <- brm(Dad ~ wkdayalonewithbaby.1.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkdayalonewithbaby.1.6pp*weeksbfdue.2 + wkdayalonewithbaby.1.6pp*bage6pp + wkdayalonewithbaby.1.6pp*Mom_cm + wkdayalonewithbaby.1.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Week time Mom alone 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekhours_Mom
+```
+
+# Hypothesis 3 Equation Synchrony X Weekend time Mom
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekendhours_Mom <- brm(Dad ~ wkendhourswithbaby.1.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkendhourswithbaby.1.6pp*weeksbfdue.2 + wkendhourswithbaby.1.6pp*bage6pp + wkendhourswithbaby.1.6pp*Mom_cm + wkendhourswithbaby.1.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Weekend time Mom
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekendhours_Mom
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_weekendhours_Mom, 
+              pred = "Mom_cm",
+              modx = "wkendhourswithbaby.1.6pp",
+              modx.labels = "Mom Weekend Hours with Baby",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE,  # use this to make two panels
+              x.label = "Mom Cluster Centered Testosterone", 
+              y.label = "Fathers' Testosterone")
+```
+
+# Hypothesis 3 Equation Synchrony X Weekend time Mom alone
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE, results='hide'}
+Bayesian_Synchrony_weekendhours_Momalone <- brm(Dad ~ wkendalonewithbaby.1.6pp + weeksbfdue.2 + bage6pp + Mom_cm + Mom_cmc + wkendalonewithbaby.1.6pp*weeksbfdue.2 + wkendalonewithbaby.1.6pp*bage6pp + wkendalonewithbaby.1.6pp*Mom_cm + wkendalonewithbaby.1.6pp*Mom_cmc + Mom_cmc*weeksbfdue.2 + Mom_cmc*bage6pp + (Mom_cmc | CoupID),
+               seed = 2155,
+               control = list(max_treedepth = 15, adapt_delta = .995),
+               chains = 8, 
+               iter = 4000, data = df_LONG)
+
+```
+
+# Hypothesis 3 Model Synchrony X Weekend time Mom alone 
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+Bayesian_Synchrony_weekendhours_Momalone
+```
+
+```{r, warning = FALSE, message=FALSE, echo=FALSE}
+interact_plot(Bayesian_Synchrony_weekendhours_Momalone, 
+              pred = "Mom_cm",
+              modx = "bage6pp",
+              modx.labels = "Baby age",
+              plot.points = TRUE, 
+              point.size = 0.5, 
+              point.alpha = 0.2, 
+              facet.modx = TRUE,  # use this to make two panels
+              x.label = "Mom Cluster Centered Testosterone", 
+              y.label = "Fathers' Testosterone")
+```
